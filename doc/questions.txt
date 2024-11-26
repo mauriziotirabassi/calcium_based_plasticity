@@ -1,0 +1,2 @@
+QUESTIONS 
+is there a nestml function for integrating just one specific ode and not all at one time with integrate_odes() ? 

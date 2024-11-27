@@ -1,4 +1,8 @@
 QUESTIONS 
-is there a nestml function for integrating just one specific ode and not all at one time with integrate_odes() ?
+1. Is there a nestml function for integrating just one specific ode and not all at one time with integrate_odes()?
 this is what happens when generating codes for hill tononi nestml containing integrate_odes(potassium_refr_t) 
 13,hill_tononi_neuron_nestml, ERROR, [180:12;180:43]]: Wrong number of arguments in function-call 'integrate_odes(potassium_refr_t)'! Expected '0', found '1'.
+
+2. Does the plasticity model have to be implemented in the synapse, neuron or both?
+
+3. Best practices in modifying .nestml files. Basic concepts from documentation.

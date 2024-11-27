@@ -3,6 +3,8 @@ QUESTIONS
 this is what happens when generating codes for hill tononi nestml containing integrate_odes(potassium_refr_t) 
 13,hill_tononi_neuron_nestml, ERROR, [180:12;180:43]]: Wrong number of arguments in function-call 'integrate_odes(potassium_refr_t)'! Expected '0', found '1'.
 
-2. Does the plasticity model have to be implemented in the synapse, neuron or both?
+2. Does the plasticity model have to be implemented in the synapse, neuron or both? Only a single synapse model for both receptors or individual ones?
 
-3. Best practices in modifying .nestml files. Basic concepts from documentation.
+3. Is there an advantage of considering also receptor dynamics that we are not interested in e.g. GABA in the Hill-Tononi neuron model?
+
+4. Best practices in modifying .nestml files. Basic concepts from documentation.

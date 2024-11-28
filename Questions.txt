@@ -1,4 +1,4 @@
-QUESTIONS 
+QUESTIONS 1
 1. Is there a nestml function for integrating just one specific ode and not all at one time with integrate_odes()?
 this is what happens when generating codes for hill tononi nestml containing integrate_odes(potassium_refr_t) 
 13,hill_tononi_neuron_nestml, ERROR, [180:12;180:43]]: Wrong number of arguments in function-call 'integrate_odes(potassium_refr_t)'! Expected '0', found '1'.
@@ -8,3 +8,6 @@ this is what happens when generating codes for hill tononi nestml containing int
 3. Is there an advantage of considering also receptor dynamics that we are not interested in e.g. GABA in the Hill-Tononi neuron model?
 
 4. Best practices in modifying .nestml files. Basic concepts from documentation.
+
+QUESTIONS 2
+1. How should we manage calcium concentrations? Do NMDA and VDCC channels contribute to the calcium concentration, which in turn contributes to V_m or do we directly make NMDA and VDCC affect V_m?

@@ -1,0 +1,150 @@
+"""
+iaf_cond_alpha - Simple conductance based leaky integrate-and-fire neuron model
+###############################################################################
+
+Description
++++++++++++
+
+iaf_cond_alpha is an implementation of a spiking neuron using IAF dynamics with
+conductance-based synapses. Incoming spike events induce a post-synaptic change
+of conductance modelled by an alpha function. The alpha function
+is normalised such that an event of weight 1.0 results in a peak current of 1 nS
+at :math:`t = \tau_{syn}`.
+
+
+References
+++++++++++
+
+.. [1] Meffin H, Burkitt AN, Grayden DB (2004). An analytical
+       model for the large, fluctuating synaptic conductance state typical of
+       neocortical neurons in vivo. Journal of Computational Neuroscience,
+       16:159-175.
+       DOI: https://doi.org/10.1023/B:JCNS.0000014108.03012.81
+.. [2] Bernander O, Douglas RJ, Martin KAC, Koch C (1991). Synaptic background
+       activity influences spatiotemporal integration in single pyramidal
+       cells.  Proceedings of the National Academy of Science USA,
+       88(24):11569-11573.
+       DOI: https://doi.org/10.1073/pnas.88.24.11569
+.. [3] Kuhn A, Rotter S (2004) Neuronal integration of synaptic input in
+       the fluctuation- driven regime. Journal of Neuroscience,
+       24(10):2345-2356
+       DOI: https://doi.org/10.1523/JNEUROSCI.3349-03.2004
+
+See also
+++++++++
+
+iaf_cond_exp
+"""
+neuron iaf_cond_alpha:
+    state:
+        r integer = 0        # counts refractory period ticks
+        V_m mV = E_L         # membrane potential
+        Ca_i real = Ca_rest  # intracellular calcium concentration
+
+        # Synaptic conductances
+        g_AMPA real = 0
+        g_NMDA real = 0
+        g_VDCC real = 0
+        g_AMPA$ real = AMPAInitialValue
+        g_NMDA$ real = NMDAInitialValue
+
+    equations:
+        # Kernel for excitatory alpha conductance
+        kernel g_exc = (e/tau_syn_exc) * t * exp(-t/tau_syn_exc)
+
+        # AMPA and NMDA conductance kernels
+        kernel g_AMPA' = g_AMPA$ - g_AMPA / AMPA_Tau_2,
+               g_AMPA$' = -g_AMPA$ / AMPA_Tau_1
+
+        kernel g_NMDA' = g_NMDA$ - g_NMDA / NMDA_Tau_2,
+               g_NMDA$' = -g_NMDA$ / NMDA_Tau_1
+
+        # VDCC conductance dynamics
+        inline VDCC_activation real = 1 / (1 + exp(-(V_m - VDCC_Vact) / VDCC_Sact))
+        g_VDCC' = -g_VDCC / VDCC_Tau + VDCC_activation * VDCC_g_peak
+
+        # Synaptic currents
+        inline I_syn_exc pA = convolve(g_exc, exc_spikes) * nS * (V_m - E_exc)
+        inline I_syn_ampa pA = -convolve(g_AMPA, AMPA) * nS * (V_m - AMPA_E_rev)
+        inline I_syn_nmda pA = -convolve(g_NMDA, NMDA) * nS * (V_m - NMDA_E_rev) / (1 + exp((NMDA_Vact - V_m) / NMDA_Sact))
+        inline I_syn_total pA = I_syn_ampa + I_syn_nmda + I_syn_exc + g_VDCC * (V_m - VDCC_E_rev)
+
+        # Leak current
+        inline I_leak pA = g_L * (V_m - E_L)
+
+        # Membrane potential dynamics
+        V_m' = (-I_leak - I_syn_total + I_e + I_stim) / C_m
+
+        # Calcium dynamics
+        inline I_ca_total pA = g_NMDA * (V_m - NMDA_E_rev) + g_VDCC * (V_m - VDCC_E_rev)
+        Ca_i' = I_ca_total - (Ca_i - Ca_rest) / tau_ca
+
+    parameters:
+        # Neuron parameters
+        V_th mV = -55 mV         # Threshold potential
+        V_reset mV = -60 mV      # Reset potential
+        t_ref ms = 2 ms          # Refractory period
+        g_L nS = 16.6667 nS      # Leak conductance
+        C_m pF = 250 pF          # Membrane capacitance
+        E_exc mV = 0 mV          # Excitatory reversal potentials
+        E_L mV = -70 mV          # Leak reversal potential (aka resting potential)
+        tau_syn_exc ms = 0.2 ms  # Synaptic time constant of excitatory synapse
+
+        # AMPA parameters
+        AMPA_Tau_1 ms = 0.5 ms       # Rise time
+        AMPA_Tau_2 ms = 2.4 ms       # Decay time
+        AMPA_E_rev mV = 0.0 mV       # Reversal potential
+        AMPA_g_peak nS = 0.1 nS      # Peak conductance
+
+        # NMDA parameters
+        NMDA_Tau_1 ms = 4.0 ms       # Rise time
+        NMDA_Tau_2 ms = 40.0 ms      # Decay time
+        NMDA_E_rev mV = 0.0 mV       # Reversal potential
+        NMDA_Vact mV = -58.0 mV      # Voltage activation
+        NMDA_Sact mV = 2.5 mV        # Activation slope
+        NMDA_g_peak nS = 0.075 nS    # Peak conductance
+
+        # VDCC parameters
+        VDCC_Vact mV = -20.0 mV
+        VDCC_Sact mV = 5.0 mV
+        VDCC_Tau ms = 1.0 ms
+        VDCC_g_peak nS = 0.05 nS
+        VDCC_E_rev mV = 120.0 mV
+
+        # Calcium parameters
+        Ca_rest real = 0.1  # Resting calcium concentration
+        tau_ca ms = 20.0 ms # Calcium clearance time constant
+
+        # External input
+        I_e pA = 0 pA
+
+    internals:
+        AMPAInitialValue real = compute_synapse_constant(AMPA_Tau_1, AMPA_Tau_2, AMPA_g_peak)
+        NMDAInitialValue real = compute_synapse_constant(NMDA_Tau_1, NMDA_Tau_2, NMDA_g_peak)
+        RefractoryCounts integer = steps(t_ref)
+
+    input:
+        exc_spikes <- spike
+        AMPA <- spike
+        NMDA <- spike
+        I_stim pA <- continuous
+
+    output:
+        spike
+
+    update:
+        integrate_odes()  # Integrate all ODEs
+
+        if r != 0:  # refractory period
+            r = r - 1
+            V_m = V_reset
+        elif V_m >= V_th:  # spike
+            r = RefractoryCounts
+            V_m = V_reset
+            emit_spike()
+
+    function compute_synapse_constant(Tau_1 ms, Tau_2 ms, g_peak real) real:
+        exact_integration_adjustment real = (1.0 / Tau_2 - 1.0 / Tau_1) * ms
+        t_peak real = (Tau_2 * Tau_1) * ln(Tau_2 / Tau_1) / (Tau_2 - Tau_1) / ms
+        normalisation_factor real = 1.0 / (exp(-t_peak / Tau_1) - exp(-t_peak / Tau_2))
+        return g_peak * normalisation_factor * exact_integration_adjustment

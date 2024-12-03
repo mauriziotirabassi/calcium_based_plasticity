@@ -1,0 +1,165 @@
+neuron Mod_iaf_cond_alpha_complete_POST_NEURON:
+    state:
+        r integer = 0      # Counts the number of ticks during the refractory period
+        V_m mV = E_L       # Membrane potential
+        
+        # State variables for AMPA and NMDA conductances
+        g_AMPA real = 0.0
+        g_NMDA real = 0.0
+        g_AMPA$ real = AMPAInitialValue
+        g_NMDA$ real = NMDAInitialValue
+        
+        # Intracellular calcium concentration
+        Ca_in real = Ca_0
+
+     equations:
+        # Kernel for excitatory alpha conductance
+        kernel g_exc = (e / tau_syn_exc) * t * exp(-t / tau_syn_exc)
+        
+        # Kernels for AMPA and NMDA conductances
+        kernel g_AMPA' = g_AMPA$ - g_AMPA / AMPA_Tau_2,
+               g_AMPA$' = -g_AMPA$ / AMPA_Tau_1
+        kernel g_NMDA' = g_NMDA$ - g_NMDA / NMDA_Tau_2,
+               g_NMDA$' = -g_NMDA$ / NMDA_Tau_1
+
+        # Synaptic currents
+        inline I_syn_exc pA = convolve(g_exc, exc_spikes) * nS * (V_m - E_exc)
+        inline I_syn_ampa pA = -convolve(g_AMPA, AMPA) * nS * (V_m - AMPA_E_rev)
+        inline I_syn_nmda pA = -convolve(g_NMDA, NMDA) * nS * (V_m - NMDA_E_rev) / (1 + exp((NMDA_Vact - V_m) / NMDA_Sact))
+        inline I_syn_vdcc pA = 0.0 pA  # Placeholder for VDCC current
+
+        # Total synaptic current
+        inline I_syn_total pA = I_syn_ampa + I_syn_nmda + I_syn_vdcc - I_syn_exc
+
+        # Leak current
+        inline I_leak pA = (g_L * (V_m - E_L))*(pA/(ns*mV))
+
+        # Update membrane potential
+        V_m' = (-I_leak + I_syn_total + I_e + I_stim) / C_m
+        
+        # Update calcium concentration
+        Ca_in' = ((I_syn_nmda + I_syn_vdcc) * (1/(pA*ms))*eta_cost / (2 * Faraday_cost * X_cost)) - (Ca_in - Ca_0) / tau_Ca
+
+    parameters:
+        # Thresholds and membrane properties
+        V_th mV = -55.0 mV
+        V_reset mV = -60.0 mV
+        t_ref ms = 2.0 ms
+        g_L ns = 16.6667 ns
+        C_m pF = 250.0 pF
+        E_exc mV = 0.0 mV
+        E_L mV = -70.0 mV
+        tau_syn_exc ms = 0.2 ms
+        
+        I_e pA = 0.0 pA
+        
+        # AMPA parameters
+        AMPA_Tau_1 ms = 0.5 ms
+        AMPA_Tau_2 ms = 2.4 ms
+        AMPA_E_rev mV = 0.0 mV
+        AMPA_g_peak ns = 0.1 ns
+
+        # NMDA parameters
+        NMDA_Tau_1 ms = 4.0 ms
+        NMDA_Tau_2 ms = 40.0 ms
+        NMDA_E_rev mV = 0.0 mV
+        NMDA_Vact mV = -58.0 mV
+        NMDA_Sact mV = 2.5 mV
+        NMDA_g_peak ns = 0.075 ns
+
+        # Calcium parameters
+        Ca_0 real = 0.00007
+        eta_cost real = 0.04
+        Faraday_cost real = 96485.0  # C/mol
+        X_cost real = 0.01  # um^3
+        tau_Ca ms = 12.0 ms
+        
+    function compute_synapse_constant(Tau_1 ms, Tau_2 ms, g_peak real) real:
+        exact_integration_adjustment real = (1.0 / Tau_2 - 1.0 / Tau_1) * ms
+        t_peak real = (Tau_2 * Tau_1) * ln(Tau_2 / Tau_1) / (Tau_2 - Tau_1) / ms
+        normalisation_factor real = 1.0 / (exp(-t_peak / Tau_1) - exp(-t_peak / Tau_2))
+        return (g_peak * normalisation_factor * exact_integration_adjustment)
+
+
+    internals:
+        # Compute initial values for AMPA and NMDA kernels
+        AMPAInitialValue real = compute_synapse_constant( AMPA_Tau_1, AMPA_Tau_2, AMPA_g_peak )
+        NMDAInitialValue real = compute_synapse_constant( NMDA_Tau_1, NMDA_Tau_2, NMDA_g_peak )
+    
+        RefractoryCounts integer = steps(t_ref) # refractory time in steps
+
+    input:
+        exc_spikes <- spike
+        AMPA <- spike
+        NMDA <- spike
+        I_stim pA <- continuous
+    
+    output:
+        spike
+
+    update:
+        # Update membrane potential and AMPA and NMDA conductances
+        integrate_odes()
+
+        # Check if neuron is in refractory state
+        if r != 0: # neuron is absolute refractory
+            r =  r - 1
+            V_m = V_reset # clamp potential
+        elif V_m >= V_th:  # neuron is not absolute refractory
+            r = RefractoryCounts
+            V_m = V_reset # clamp potential
+            emit_spike()
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

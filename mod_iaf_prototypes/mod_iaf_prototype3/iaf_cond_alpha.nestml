@@ -1,0 +1,138 @@
+neuron iaf_cond_alpha:
+    state:
+        r integer = 0        # Counts refractory period ticks
+        V_m mV = E_L         # Membrane potential
+        Ca_i mol/um**3 = Ca_rest  # Intracellular calcium concentration
+
+        # Synaptic conductances
+        g_AMPA real = 0
+        g_NMDA real = 0
+        g_AMPA$ real = AMPAInitialValue
+        g_NMDA$ real = NMDAInitialValue
+
+        # VDCC gating variables
+        m_VDCC real = m_VDCC_initialvalue
+        h_VDCC real = h_VDCC_initialvalue
+
+    equations:
+        # Kernel for excitatory alpha conductance
+        kernel g_exc = (e/tau_syn_exc) * t * exp(-t/tau_syn_exc)
+
+        # AMPA and NMDA conductance kernels
+        kernel g_AMPA' = g_AMPA$ - g_AMPA / AMPA_Tau_2,
+               g_AMPA$' = -g_AMPA$ / AMPA_Tau_1
+
+        kernel g_NMDA' = g_NMDA$ - g_NMDA / NMDA_Tau_2,
+               g_NMDA$' = -g_NMDA$ / NMDA_Tau_1
+    
+        # VDCC conductance and dynamics
+        inline g_VDCC real = VDCC_g_peak * m_VDCC**2 * h_VDCC
+        recordable inline I_vdcc pA = -g_VDCC * nS * (V_m - VDCC_E_rev)
+        inline VDCC_E_rev mV = (Rgas * Temp / (2 * Farado)) * (cao_CR / Ca_i) * 1e-3  # Nernst equation for calcium (reverse potential)
+
+        # VDCC activation and inactivation
+        inline m_inf_VDCC real = 1 / (1 + exp((VDCC_V_hm - V_m) / VDCC_k_m)) # Steady state activation variable m
+        inline h_inf_VDCC real = 1 / (1 + exp((VDCC_V_hh - V_m) / VDCC_k_h)) # Steady state inactivation variable h
+        m_VDCC' = (m_inf_VDCC - m_VDCC) / VDCC_tau_m
+        h_VDCC' = (h_inf_VDCC - h_VDCC) / VDCC_tau_h
+
+        # Synaptic currents
+        inline I_exc pA = convolve(g_exc, exc_spikes) * nS * (V_m - E_exc)
+        inline I_ampa pA = -convolve(g_AMPA, AMPA) * nS * (V_m - AMPA_E_rev)
+        inline I_nmda pA = -convolve(g_NMDA, NMDA) * nS * (V_m - NMDA_E_rev) / (1 + exp((NMDA_Vact - V_m) / NMDA_Sact))
+        inline I_syn_total pA = I_ampa + I_nmda + I_exc
+        inline I_leak pA = g_L * (V_m - E_L)
+        
+        # Calcium dynamics
+        Ca_i' = ( I_nmda + I_vdcc ) * ( gamma_ca_CR / ( 2 * Ca_X_volume * Farado ) ) - ( ( Ca_i - Ca_rest ) / Ca_tau )
+
+        # Membrane potential dynamics
+        V_m' = (-I_leak - I_syn_total + I_stim) / C_m
+
+    parameters:
+        # Neuron parameters
+        V_th mV = -55 mV         # Threshold potential
+        V_reset mV = -60 mV      # Reset potential
+        t_ref ms = 2 ms          # Refractory period
+        g_L nS = 16.6667 nS      # Leak conductance
+        C_m pF = 250 pF          # Membrane capacitance
+        E_L mV = -70 mV          # Leak reversal potential
+        
+        # Artificial excitation parameters
+        E_exc mV = 0 mV          # Excitatory reversal potentials
+        tau_syn_exc ms = 0.2 ms  # Synaptic time constant of excitatory synapse
+
+        # AMPA parameters
+        AMPA_Tau_1 ms = 0.5 ms
+        AMPA_Tau_2 ms = 2.4 ms
+        AMPA_E_rev mV = 0.0 mV
+        AMPA_g_peak nS = 0.1 nS
+
+        # NMDA parameters
+        NMDA_Tau_1 ms = 4.0 ms
+        NMDA_Tau_2 ms = 40.0 ms
+        NMDA_E_rev mV = 0.0 mV
+        NMDA_Vact mV = -58.0 mV
+        NMDA_Sact mV = 2.5 mV
+        NMDA_g_peak nS = 0.075 nS
+
+        # VDCC parameters
+        VDCC_g_bar nS/um**2 = 0.0744 nS/um**2 # VDCC surface area density
+        
+        VDCC_V_hm mV = -5.9 mV # Half-maximum inactivation voltage for VDCC
+        VDCC_k_m mV = 9.5 mV # Slope factor for VDCC activation
+        VDCC_tau_m ms = 1 ms # Time constant activation variable m
+        
+        VDCC_V_hh mV = -39 mV # Half-maximum inactivation voltage for VDCC
+        VDCC_k_h mV = -9.2 mV # Slope factor for VDCC inactivation
+        VDCC_tau_h ms = 27 ms # Time constant inactivation variable h
+
+        # Calcium parameters
+        Ca_rest mol/um**3 = 0.07e-3 mol/um**3
+        Ca_tau ms = 12.0 ms # Time constant of calcium transients Sabatini et al.
+        cao_CR mol/um**3 = 2.0e-3 mol/um**3
+        Ca_X_volume um**3 = 0.087 um**3
+        Ca_eta real = 0.04
+
+        # Thermodynamic constants
+        Rgas J/(mol*K) = 8.314 J/(mol*K)
+        Temp K = 310.0 K
+        Farado C/mol = 96485.0e-15 C/mol
+
+    internals:
+        # AMPA initialization
+        inline exact_integration_adjustment_AMPA real = ( ( 1 / AMPA_Tau_2 ) - ( 1 / AMPA_Tau_1 ) ) * ms
+        inline t_peak_AMPA ms = ( AMPA_Tau_2 * AMPA_Tau_1 ) * ln( AMPA_Tau_2 / AMPA_Tau_1 ) / ( AMPA_Tau_2 - AMPA_Tau_1 )
+        inline normalisation_factor_AMPA real = 1 / ( exp( -t_peak_AMPA / AMPA_Tau_1 ) - exp( -t_peak_AMPA / AMPA_Tau_2 ) )
+        inline AMPAInitialValue real = AMPA_g_peak * normalisation_factor_AMPA * exact_integration_adjustment_AMPA
+        
+        # NMDA initialization
+        inline exact_integration_adjustment_NMDA real = ( ( 1 / NMDA_Tau_2 ) - ( 1 / NMDA_Tau_1 ) ) * ms
+        inline t_peak_NMDA ms = ( NMDA_Tau_2 * NMDA_Tau_1 ) * ln( NMDA_Tau_2 / NMDA_Tau_1 ) / ( NMDA_Tau_2 - NMDA_Tau_1 )
+        inline normalisation_factor_NMDA real = 1 / ( exp( -t_peak_NMDA / NMDA_Tau_1 ) - exp( -t_peak_NMDA / NMDA_Tau_2 ) )
+        inline NMDAInitialValue real = NMDA_g_peak * normalisation_factor_NMDA * exact_integration_adjustment_NMDA
+        
+        # VDCC initialization
+        inline VDCC_g_peak real = ( VDCC_g_bar * 4 * 3.14 * ( ( 3 * Ca_X_volume / ( 4 * 3.14 ) ) )**(2/3) ) # VDCC conductance peak
+        m_VDCC_initialvalue real = 1 / (1 + exp((VDCC_V_hm - V_reset) / VDCC_k_m))
+        h_VDCC_initialvalue real = 1 / (1 + exp((VDCC_V_hh - V_reset) / VDCC_k_h))
+
+    input:
+        exc_spikes <- spike
+        AMPA <- spike
+        NMDA <- spike
+        I_stim pA <- continuous
+
+    output:
+        spike
+
+    update:
+        integrate_odes()
+
+        if r > 0:  # Refractory period
+            r = r - 1
+            V_m = V_reset
+        elif V_m >= V_th:  # Spike generation
+            emit_spike()
+            r = steps(t_ref)
+            V_m = V_reset

@@ -10,4 +10,6 @@ this is what happens when generating codes for hill tononi nestml containing int
 4. Best practices in modifying .nestml files. Basic concepts from documentation.
 
 QUESTIONS 2
-1. How should we manage calcium concentrations? Do NMDA and VDCC channels contribute to the calcium concentration, which in turn contributes to V_m or do we directly make NMDA and VDCC affect V_m?
+1. Stimulation. How to choose whether to stimulate with external directly on V_m or the gates.
+
+2. Resolution of AMPA and NMDA chanels. Making them dependent on gating variables A and B would require the creation of kernels. Difficult.

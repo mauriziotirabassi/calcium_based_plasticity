@@ -1,55 +1,37 @@
 
 synapse stdp_ca_synapse:
+            
     state:
         w real = 1.    @nest::weight   # Synaptic weight
-        pre_trace real = 0.
-        post_trace real = 0.
-        cstar mol/um**3 = 0 mol/um**3
         
         
-
+        
+        
+        
     parameters:
         d ms = 1 ms  @nest::delay   # Synaptic transmission delay
-        lambda real = .01
-        tau_tr_pre ms = 20 ms
-        tau_tr_post ms = 20 ms
-        alpha real = 1
-        mu_plus real = 1
-        mu_minus real = 1
-        Wmax real = 100.
-        Wmin real = 0.
-        min_ca_CR mol/um**3 = 0.00000000000000000000007 mol/um**3
-        tau_star ms = 200 ms
-
-    equations:
-        pre_trace' = -pre_trace / tau_tr_pre
-        post_trace' = -post_trace / tau_tr_post
         
-        #cstar' = ( cstar / tau_star ) - ( cai_CR_s - min_ca_CR ) / ms 
+        
+        
+        
+       
+    
+    
+         
 
     input:
         pre_spikes <- spike
         post_spikes <- spike
-        cai_CR_s mol/um**3 <- continuous
+        
 
     output:
         spike
+    
 
     onReceive(post_spikes):
-        print("Info: processing a postsynaptic spike at time t = {t}")
-        post_trace += 1
-
-        # potentiate synapse
-        w_ real = Wmax * ( w / Wmax  + (lambda * ( 1. - ( w / Wmax ) )**mu_plus * pre_trace ))
-        w = min(Wmax, w_)
-
-    onReceive(pre_spikes):
         print("Info: processing a presynaptic spike at time t = {t}")
-        pre_trace += 1
+        
 
-        # depress synapse
-        w_ real = Wmax * ( w / Wmax  - ( alpha * lambda * ( w / Wmax )**mu_minus * post_trace ))
-        w = max(Wmin, w_)
-
-        # deliver spike to postsynaptic partner
+        
+    onReceive(pre_spikes):
         deliver_spike(w, d)

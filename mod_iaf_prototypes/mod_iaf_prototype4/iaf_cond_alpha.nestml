@@ -27,14 +27,17 @@ neuron iaf_cond_alpha:
         # External excitation current
         inline I_exc pA = convolve(g_exc, exc_spikes) * nS * (V_m - E_exc) # Artificial excitatory current
         
-        # VDCC current
-        inline m_inf_VDCC real = 1 / (1 + exp((VDCC_V_hm - V_m) / VDCC_k_m))      # Steady state activation variable m
-        inline h_inf_VDCC real = 1 / (1 + exp((VDCC_V_hh - V_m) / VDCC_k_h))      # Steady state inactivation variable h
+        # VDCC conductance
+        inline m_inf_VDCC real = 1 / ( 1 + exp( ( VDCC_V_hm - V_reset ) / VDCC_k_m ) ) # Steady state activation variable m
+        inline h_inf_VDCC real = 1 / ( 1 + exp( ( VDCC_V_hh - V_reset ) / VDCC_k_h ) ) # Steady state inactivation variable h
+        m_VDCC' = (m_inf_VDCC - m_VDCC) / ( VDCC_tau_m * 1e3 )
+        h_VDCC' = (h_inf_VDCC - h_VDCC) / ( VDCC_tau_h * 1e3 )
         inline g_VDCC real = VDCC_g_peak * m_VDCC**2 * h_VDCC
-        m_VDCC' = (m_inf_VDCC - m_VDCC) / VDCC_tau_m
-        h_VDCC' = (h_inf_VDCC - h_VDCC) / VDCC_tau_h
-        inline VDCC_E_rev mV = (Rgas * Temp / (2 * Farado)) * (Ca_out / Ca_in)  # Nernst equation for VDCC reverse potential
-        recordable inline I_VDCC pA = -g_VDCC * nS * (V_m - VDCC_E_rev)           # Calcium current through VDCC
+
+        # VDCC current
+        inline log_approx real = (Ca_out - Ca_in) / max(Ca_in, Ca_rest)
+        inline VDCC_E_rev mV = ( -(Rgas * Temp / (2 * Farado)) * log_approx )     # Nernst equation for VDCC reverse potential
+        recordable inline I_VDCC pA = -g_VDCC * nS * ( V_m - VDCC_E_rev )         # Calcium current through VDCC
         
         # AMPA current
         recordable inline I_AMPA pA = -convolve(g_AMPA, AMPA) * nS * (V_m - AMPA_E_rev)
@@ -53,7 +56,7 @@ neuron iaf_cond_alpha:
 
         # Membrane potential dynamics
         inline I_total pA = I_AMPA + I_NMDA + I_VDCC + I_exc
-        V_m' = (-I_leak - I_total + I_stim) / C_m
+        V_m' = (-I_leak + I_total + I_stim) / C_m
 
     parameters:
         # Neuron parameters

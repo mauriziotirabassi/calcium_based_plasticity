@@ -1,0 +1,189 @@
+neuron waveform_neuron: 
+    state:
+        r integer = 0      # counts number of tick during the refractory period   
+        
+        V_m mV = E_Rest
+     
+
+        g_AMPA real = 0
+        g_NMDA real = 0
+        g_AMPA$ real = AMPAInitialValue
+        g_NMDA$ real = NMDAInitialValue
+        
+        
+        cai_CR mol/um**3 = min_ca_CR [[cai_CR > 0 mol/um**3]]
+        cai_CR_nmda mol/um**3 = min_ca_CR [[cai_CR_nmda > 0 mol/um**3]]
+        cai_CR_vdcc mol/um**3 = min_ca_CR [[cai_CR_vdcc > 0 mol/um**3]]
+        
+        cstar mol/um**3 = 0 mol/um**3
+        
+        m_VDCC real = m_VDCC_initialvalue
+        h_VDCC real = h_VDCC_initialvalue
+        
+        p real = 0
+
+    equations:
+        #############
+        # V_m
+        ############# 
+        kernel g_exc = (e / tau_syn_exc) * t * exp(-t / tau_syn_exc)
+        
+        inline gca_VDCC real = gca_ba_VDCC * m_VDCC**2 * h_VDCC
+        recordable inline log_approx real = (cao_CR - cai_CR) / max(cai_CR, min_ca_CR)
+        recordable inline Eca_syn mV = ( -( Rgas * Temp / ( 2 * Farado ) ) * log_approx ) #qui ln cao cai
+        
+        recordable inline I_Ca_vdcc pA = -(gca_VDCC * nS * ( V_m - Eca_syn ))*10**(2)     #aumentato effetto vdcc (se no era trascurabile)
+
+        recordable inline I_syn_ampa pA = -convolve(g_AMPA, AMPA) * nS * ( V_m - AMPA_E_rev ) 
+        recordable inline I_syn_nmda pA = -convolve(g_NMDA, NMDA) * nS * ( V_m - NMDA_E_rev ) / ( 1 + exp( ( NMDA_Vact - V_m ) / NMDA_Sact ) ) 
+        
+        recordable inline I_syn_exc pA = convolve(g_exc, exc_spikes) * nS * (V_m - E_exc)
+        inline I_leak pA = (g_L * (V_m - E_Rest))*(pA/(ns*mV))
+        
+        inline I_syn pA = I_syn_ampa + I_syn_nmda  - I_syn_exc
+        
+        #############
+        #VDCC
+        #############
+        inline minf_VDCC real = 1 / ( 1 + exp( ( ( vhm_VDCC - ljp_VDCC ) - V_m ) / km_VDCC ) )
+        inline hinf_VDCC real = 1 / ( 1 + exp( ( ( vhh_VDCC - ljp_VDCC ) - V_m ) / kh_VDCC ) )
+        
+        m_VDCC' = ( minf_VDCC - m_VDCC ) / ( mtau_VDCC * 10**(3) )
+        h_VDCC' = ( hinf_VDCC - h_VDCC ) / ( htau_VDCC * 10**(3) )
+        
+        
+        cai_CR' = ( 10**(-26) ) * ( I_syn_nmda + I_Ca_vdcc ) * gamma_ca_CR / ( ( 10**(-15) ) * volume_CR * 2 * Farado ) - ( cai_CR - min_ca_CR ) / tau_ca_CR   #fattore correzione par dati uguali a paper
+        cai_CR_nmda' = ( 10**(-26) ) * ( I_syn_nmda) * gamma_ca_CR / ( ( 10**(-15) ) * volume_CR * 2 * Farado ) - ( cai_CR_nmda - min_ca_CR ) / tau_ca_CR
+        cai_CR_vdcc' = ( 10**(-26) ) * ( I_Ca_vdcc ) * gamma_ca_CR / ( ( 10**(-15) ) * volume_CR * 2 * Farado ) - ( cai_CR_vdcc - min_ca_CR ) / tau_ca_CR
+        
+        V_m'  = ( ( -I_leak + I_syn + I_e + I_stim ) / Tau_m ) * s/nF 
+        #V_m' = (-I_leak + I_syn + I_e + I_stim) / C_m
+        
+        p' = (-p * (1 - p) * (0.5 - p) + p_rate * (1 - p) * Hfun(cstar, th_p) - d_rate * p * Hfun(cstar, th_d)) / tau_syn
+        
+        cstar' =  -( cstar / tau_star ) + ( cai_CR - min_ca_CR ) / ( 1 * ms )
+        
+        
+        
+        #############
+        # Synapses
+        #############
+        kernel g_AMPA' = g_AMPA$ - g_AMPA  / AMPA_Tau_2,
+               g_AMPA$' = -g_AMPA$ / AMPA_Tau_1
+
+        kernel g_NMDA' = g_NMDA$ - g_NMDA / NMDA_Tau_2,
+               g_NMDA$' = -g_NMDA$ / NMDA_Tau_1
+               
+              
+    parameters:
+        E_Rest mV = -65 mV
+        E_Ca mV = 40.0 mV
+        E_Reset mV = 30 mV
+        Theta_eq mV = -51.0 mV # equilibrium value
+        Tau_spike ms = 1.75 ms # membrane time constant applying to repolarizing K-current 1.75
+        t_ref ms = 60 ms
+        Tau_theta ms = 2.0 ms  # time constant
+        g_L ns = 16.6667 ns
+        C_m pF = 250.0 pF
+        E_exc mV = 0.0 mV
+        tau_syn_exc ms = 0.2 ms
+        Tau_m ms = 16.0 ms
+
+        # Parameters for synapse of type AMPA, GABA_A, GABA_B and NMDA
+        AMPA_g_peak nS = 2.0 nS      # peak conductance #0.8
+        AMPA_E_rev mV = 0.0 mV       # reversal potential
+        AMPA_Tau_1 ms = 0.5 ms       # rise time 0.5
+        AMPA_Tau_2 ms = 1.2 ms       # decay time, Tau_1 < Tau_2 2.4
+        NMDA_g_peak nS = 0.075 nS    # peak conductance
+        NMDA_Tau_1 ms = 4.0 ms       # rise time 4
+        NMDA_Tau_2 ms = 10.0 ms      # decay time, Tau_1 < Tau_2 40
+        NMDA_E_rev mV = 0.0 mV       # reversal potential
+        NMDA_Vact mV = -58.0 mV      # inactive for V << Vact, inflection of sigmoid
+        NMDA_Sact mV = 2.5 mV        # scale of inactivation
+       
+        
+        
+        #VDCC parameters
+        tau_ca_CR s = 0.012 s #0.012
+        gamma_ca_CR real = 0.04
+        min_ca_CR mol/um**3 = 7e-22 mol/um**3
+        cao_CR mol/um**3 = 2e-18 mol/um**3
+        volume_CR um**3 = 0.087 um**3
+        gca_bar_VDCC nS/um**2 = 0.0744 nS/um**2
+        ljp_VDCC mV = 0 mV
+        vhm_VDCC mV = -5.9 mV
+        km_VDCC mV = 9.5 mV
+        vhh_VDCC mV = -39 mV
+        kh_VDCC mV = -9.2 mV
+        mtau_VDCC ms = 1 ms
+        htau_VDCC ms = 27 ms
+        
+        Rgas J/(mol*K) = 8.314 J/(mol*K)
+        Temp K = 310.0 K
+        Farado C/mol = 96485.0 C/mol
+        
+        tau_star ms = 278.318 ms
+        tau_syn ms = 70000.0 ms
+        th_p real = 5.75e-13           # Soglia per potenziamento
+        th_d real = 4.9e-13           # Soglia per depressione
+        p_rate real = 216.2           # Tasso di potenziamento
+        d_rate real = 101.5   
+        
+        # constant external input current
+        I_e pA = 0 pA
+
+    internals:
+       # Inline calculations for each synapse
+        RefractoryCounts integer = steps(t_ref) # refractory time in steps
+        inline exact_integration_adjustment_AMPA real = ( ( 1 / AMPA_Tau_2 ) - ( 1 / AMPA_Tau_1 ) ) * ms
+        inline t_peak_AMPA ms = ( AMPA_Tau_2 * AMPA_Tau_1 ) * ln( AMPA_Tau_2 / AMPA_Tau_1 ) / ( AMPA_Tau_2 - AMPA_Tau_1 )
+        inline normalisation_factor_AMPA real = 1 / ( exp( -t_peak_AMPA / AMPA_Tau_1 ) - exp( -t_peak_AMPA / AMPA_Tau_2 ) )
+        inline AMPAInitialValue real = AMPA_g_peak * normalisation_factor_AMPA * exact_integration_adjustment_AMPA
+        inline exact_integration_adjustment_NMDA real = ( ( 1 / NMDA_Tau_2 ) - ( 1 / NMDA_Tau_1 ) ) * ms
+        inline t_peak_NMDA ms = ( NMDA_Tau_2 * NMDA_Tau_1 ) * ln( NMDA_Tau_2 / NMDA_Tau_1 ) / ( NMDA_Tau_2 - NMDA_Tau_1 )
+        inline normalisation_factor_NMDA real = 1 / ( exp( -t_peak_NMDA / NMDA_Tau_1 ) - exp( -t_peak_NMDA / NMDA_Tau_2 ) )
+        inline NMDAInitialValue real = NMDA_g_peak * normalisation_factor_NMDA * exact_integration_adjustment_NMDA
+        
+        inline gca_ba_VDCC real = ( gca_bar_VDCC * 4 * 3.14 * ( ( 3 * volume_CR / ( 4 * 3.14 ) ) )**(2/3) ) / nS
+        
+        inline m_VDCC_initialvalue real = 1 / ( 1 + exp( ( ( vhm_VDCC - ljp_VDCC ) - E_Rest ) / km_VDCC ) )
+        inline h_VDCC_initialvalue real = 1 / ( 1 + exp( ( ( vhh_VDCC - ljp_VDCC ) - E_Rest ) / kh_VDCC ) )
+        
+        
+        
+    input:
+        exc_spikes <- spike
+        AMPA <- spike
+        NMDA <- spike
+        I_stim pA <- continuous
+
+    output:
+        spike
+
+    update:
+       cai_CR = max(cai_CR, min_ca_CR)
+       cai_CR_vdcc = max(cai_CR_vdcc, min_ca_CR)
+       cai_CR_nmda = max(cai_CR_nmda, min_ca_CR)
+       
+       integrate_odes()
+       cai_CR = max(cai_CR, min_ca_CR)  # Prevent cai_CR from dropping below min_ca_CR
+       cai_CR_vdcc = max(cai_CR_vdcc, min_ca_CR)
+       cai_CR_nmda = max(cai_CR_nmda, min_ca_CR)
+       
+       if r > 0: 
+           r =  r - 1
+           
+       else:
+           if V_m >= Theta_eq:
+               V_m = E_Reset
+               r = RefractoryCounts
+               emit_spike()
+
+                      
+           
+    function Hfun(cStel real, th real) real:
+        if cStel > th:
+            return 1.0
+        else:
+            return 0.0
+

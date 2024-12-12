@@ -3,6 +3,7 @@ synapse stdp_ca_synapse:
     state:
         w real = 1    @nest::weight   # Synaptic weight
         #Use real = 1
+        mean_w real = 1
     
     
         
@@ -12,8 +13,13 @@ synapse stdp_ca_synapse:
     parameters:
         d ms = 1 ms  @nest::delay   # Synaptic transmission delay
         w_min real = 1
-        w_max real = 3
+        w_max real = 5
+        w_mean_max real = 2
+        w_mean_min real = 1
         
+        #lambda real = 0
+        
+        std real = 0.2
     
         
     input:
@@ -30,8 +36,11 @@ synapse stdp_ca_synapse:
         
 
     onReceive(pre_spikes):
-        print(".")
-        #A = p_syn
         # deliver spike to postsynaptic partner
-        w = ( w_min + ( w_max - w_min ) * p_syn ) 
+        #lambda = p_syn * (w_max - w_min )
+        #w = ( w_min + ( w_max - w_min ) * p_syn )
+        mean_w = w_mean_min + ( w_mean_max - w_mean_min ) * p_syn
+        w = random_normal( mean_w , std )
+        w = max( w_min, min( w , w_max ) )
         deliver_spike(w, d)
+

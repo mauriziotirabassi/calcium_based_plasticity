@@ -1,0 +1,44 @@
+
+synapse stdp_ca_synapse:
+    state:
+        w real = 1    @nest::weight     # Synaptic weight
+        mean_w real = 1                 # Temporary variable to hold the mean weight
+    
+
+    parameters:
+        d ms = 1 ms  @nest::delay   # Synaptic transmission delay
+        w_min real = 1              # Minimum allowed synaptic weight
+        w_max real = 5              # Maximum allowed synaptic weight
+        w_mean_max real = 2         # Maximum value of the mean weight
+        w_mean_min real = 1         # Minimum value of the mean weight
+        std real = 0.2              # Standard deviation for Gaussian sampling of weight
+    
+        
+    input:
+        pre_spikes <- spike
+        post_spikes <- spike
+        p_syn real <- continuous
+
+    output:
+        spike
+
+
+    onReceive(post_spikes):
+        print(".")
+        
+
+    onReceive(pre_spikes):
+        # Deliver spike to postsynaptic partner
+
+        # Compute the mean weight (mean_w) based on p_syn
+        # Linear interpolation between w_mean_min and w_mean_max using p_syn
+        mean_w = w_mean_min + ( w_mean_max - w_mean_min ) * p_syn
+
+        # Sample the synaptic weight (w) from a normal distribution centered at mean_w with standard deviation 'std'
+        w = random_normal( mean_w , std )
+
+        # Clamp the weight 'w' to ensure it stays within [w_min, w_max]
+        w = max( w_min, min( w , w_max ) )
+
+        # Deliver the spike with the computed weight 'w' and delay 'd'
+        deliver_spike(w, d)

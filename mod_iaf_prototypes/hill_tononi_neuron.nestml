@@ -73,13 +73,15 @@ neuron hill_tononi_neuron:
         inline I_spike mV = (g_spike) ? -( V_m - E_K ) / Tau_spike * ms : 0 mV #state of g_spike is important HERE
         
         # Calcium dynamics
-        Ca_in' = ( 1e-9 ) * ( I_NMDA + I_VDCC ) * Ca_eta / ( ( 1e-15 ) * Ca_X_volume * 2 * Farado ) - ( Ca_in - Ca_rest ) / Ca_tau
-        
+        inline NMDA_Ca_fraction real = (4 * Ca_out) / (4 * Ca_out + (1/1.38) * 120 * (mol/um**3)) * 0.6 # TODO: Justify
+        recordable inline I_NMDA_Ca pA = NMDA_Ca_fraction * I_NMDA # NMDA mediated calcium current
+        Ca_in' = ( I_NMDA_Ca + I_VDCC ) * ( Ca_eta / ( 2 * Ca_X_volume * Farado ) ) - ( ( Ca_in - Ca_rest ) / Ca_tau )
+
         # Membrane dynamics
         V_m'  = ( ( I_Na + I_K + I_AMPA + I_NMDA + I_NaP + I_VDCC + I_KNa + I_syn_exc + I_stim ) / Tau_m + I_spike * pA/(ms * mV) ) * s/nF
         
         # Synaptic efficacy dynamics
-        p' = (-p * (1 - p) * (0.5 - p) + p_rate * (1 - p) * Hfun(cstar, th_p) - d_rate * p * Hfun(cstar, th_d)) / tau_syn
+        p' = (-p * (1 - p) * (p_star - p) + p_rate * (1 - p) * Hfun(cstar, th_p) - d_rate * p * Hfun(cstar, th_d)) / tau_syn
         cstar' = - ( cstar / tau_star ) + ( Ca_in - Ca_rest ) / ( 1 * ms )
                  
     parameters:
@@ -98,11 +100,13 @@ neuron hill_tononi_neuron:
         t_ref ms = 700 ms           # added from iaf for refracrariness not ode
         tau_syn_exc ms = 0.2 ms
 
-        # Parameters for synapse of type AMPA, GABA_A, GABA_B and NMDA
+        # AMPA parameters
         AMPA_g_peak nS = 0.1 nS      # peak conductance
         AMPA_E_rev mV = 0.0 mV       # reversal potential
         AMPA_Tau_1 ms = 0.5 ms       # rise time
         AMPA_Tau_2 ms = 2.4 ms       # decay time, Tau_1 < Tau_2
+
+        # NMDA parameters
         NMDA_g_peak nS = 0.075 nS    # peak conductance
         NMDA_Tau_1 ms = 4.0 ms       # rise time
         NMDA_Tau_2 ms = 40.0 ms      # decay time, Tau_1 < Tau_2
@@ -130,8 +134,8 @@ neuron hill_tononi_neuron:
         # Calcium parameters
         Ca_tau ms = 12 ms                       # Time constant of calcium transients Sabatini et al.
         Ca_eta real = 0.04                      # Percent of free calcium (not buffered), Sabatini et al 2002: kappa_e = 24+-11 (also 14 (2-31) or 22 (18-33))
-        Ca_rest mol/um**3 = 7e-26 mol/um**3     # Sabatini et al 2002: 70+-29 nM, per AP: 1.1 (0.6-8.2) uM = 1100 e-6 mM = 1100 nM
-        Ca_out mol/um**3 = 2e-24 mol/um**3      # Extracellular calcium concentration in slices
+        Ca_rest mol/um**3 = 7e-5 mol/um**3      # Sabatini et al 2002: 70+-29 nM, per AP: 1.1 (0.6-8.2) uM = 1100 e-6 mM = 1100 nM
+        Ca_out mol/um**3 = 2.0 mol/um**3        # Extracellular calcium concentration in slices
         Ca_X_volume um**3 = 0.087 um**3         # Spine volume
         
         # Thermodynamic constants
@@ -140,6 +144,7 @@ neuron hill_tononi_neuron:
         Farado C/mol = 96485.0 C/mol
         
         # Synaptic efficacy parameters
+        p_star real = 0.5
         tau_star ms = 278.318 ms
         tau_syn ms = 70000.0 ms
         th_p real = 0.000073            # Soglia per potenziamento

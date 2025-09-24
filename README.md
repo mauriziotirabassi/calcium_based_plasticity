@@ -36,7 +36,8 @@ In this project, we modeled neurons and synapses in NESTML/PyNestML to reproduce
 ## Contents
 
 - `neuron.nestml` — NESTML implementation of the neuron model.  
-- `synapse.nestml` — NESTML implementation of the calcium-based STDP synapse.  
+- `synapse.nestml` — NESTML implementation of the calcium-based STDP synapse.
+- `notebook.ipynb` — Jupyter notebook with the simulations.
 
 ## References
 

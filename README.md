@@ -14,7 +14,7 @@ In this project, we modeled neurons and synapses in NESTML/PyNestML to reproduce
 - **Synapse model:**  
   Custom implementation of calcium-dependent plasticity. Calcium influx is modeled through:  
   - NMDA receptor current (including magnesium block),  
-  - Voltage-dependent calcium channels (VDCC, after Chindemi et al.).  
+  - Voltage-dependent calcium channels (VDCC, after Chindemi et al.).
 
 - **Plasticity mechanism:**  
   - Calcium traces integrated through a leaky accumulator (*c⋆*, per Chindemi et al.).  

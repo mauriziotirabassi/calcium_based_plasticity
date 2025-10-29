@@ -39,7 +39,3 @@ In this project, we modeled neurons and synapses in NESTML/PyNestML to reproduce
 - `stdp_ca_synapse.nestml` — NESTML implementation of the calcium-based STDP synapse.
 - `notebook.ipynb` — Jupyter notebook with the simulations.
 - `supplementary_material.pdf` — Comments on findings.
-
-## References
-
-- G. Chindemi et al., *A calcium-based plasticity model for predicting long-term potentiation and depression in the neocortex*, Nature Communications, 2022:contentReference[oaicite:1]{index=1}.  

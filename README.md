@@ -1,6 +1,6 @@
 # Calcium-based Synaptic Plasticity in NESTML
 
-This repository contains a project replicating the spike-timing-dependent plasticity (STDP) framework proposed by **Chindemi et al. (2022)** inside the **NESTML** simulation environment.
+This repository contains a project replicating the spike-timing-dependent plasticity (STDP) framework proposed by **(Chindemi et al. (2022))[https://github.com/mauriziotirabassi/isce_iterative_rag]** inside the **NESTML** simulation environment.
 
 ## Project Overview
 
